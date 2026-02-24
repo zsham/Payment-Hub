@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { 
   ShoppingCart, 
@@ -15,7 +15,12 @@ import {
   LogOut,
   X,
   Mail,
-  Key
+  Key,
+  Menu,
+  Settings,
+  History,
+  CreditCard as BillingIcon,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -49,12 +54,24 @@ export default function App() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '' });
   const [authError, setAuthError] = useState('');
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     checkAuth();
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const checkAuth = async () => {
@@ -99,6 +116,7 @@ export default function App() {
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     setUser(null);
+    setIsUserDropdownOpen(false);
   };
 
   const initialOptions = {
@@ -152,22 +170,59 @@ export default function App() {
             <span className="font-bold text-xl tracking-tight uppercase italic">PayHub.</span>
           </div>
           
+          {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-10 text-[13px] font-semibold uppercase tracking-widest text-black/40">
             <a href="#" className="hover:text-black transition-colors">Solutions</a>
             <a href="#" className="hover:text-black transition-colors">Pricing</a>
             <a href="#" className="hover:text-black transition-colors">Developers</a>
+            
             {user ? (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-black">
-                  <User className="w-4 h-4" />
-                  <span>{user.name}</span>
-                </div>
+              <div className="relative" ref={dropdownRef}>
                 <button 
-                  onClick={handleLogout}
-                  className="p-2 hover:bg-black/5 rounded-full transition-colors text-rose-500"
+                  onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                  className="flex items-center gap-2 text-black bg-black/5 px-4 py-2 rounded-full hover:bg-black/10 transition-all"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-[10px] text-white">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="normal-case tracking-normal font-bold">{user.name.split(' ')[0]}</span>
                 </button>
+
+                <AnimatePresence>
+                  {isUserDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-3 w-64 bg-white rounded-[24px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] border border-black/5 p-2 overflow-hidden"
+                    >
+                      <div className="px-4 py-3 border-b border-black/5 mb-1">
+                        <div className="text-xs font-bold text-black/30 uppercase tracking-widest mb-1">Signed in as</div>
+                        <div className="text-sm font-bold truncate">{user.email}</div>
+                      </div>
+                      <button className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold hover:bg-black/5 rounded-xl transition-colors">
+                        <User className="w-4 h-4 text-black/40" />
+                        Profile Settings
+                      </button>
+                      <button className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold hover:bg-black/5 rounded-xl transition-colors">
+                        <History className="w-4 h-4 text-black/40" />
+                        Transaction History
+                      </button>
+                      <button className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold hover:bg-black/5 rounded-xl transition-colors">
+                        <BillingIcon className="w-4 h-4 text-black/40" />
+                        Billing Methods
+                      </button>
+                      <div className="h-px bg-black/5 my-1" />
+                      <button 
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ) : (
               <button 
@@ -178,7 +233,71 @@ export default function App() {
               </button>
             )}
           </div>
+
+          {/* Mobile Menu Toggle */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 hover:bg-black/5 rounded-xl transition-colors"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+
+        {/* Mobile Menu Overlay */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden border-t border-black/5 bg-white overflow-hidden"
+            >
+              <div className="p-6 space-y-6">
+                <div className="flex flex-col gap-4">
+                  <a href="#" className="text-lg font-bold">Solutions</a>
+                  <a href="#" className="text-lg font-bold">Pricing</a>
+                  <a href="#" className="text-lg font-bold">Developers</a>
+                </div>
+                <div className="h-px bg-black/5" />
+                {user ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold">{user.name}</div>
+                        <div className="text-xs text-black/40">{user.email}</div>
+                      </div>
+                    </div>
+                    <button className="w-full flex items-center gap-3 py-2 text-sm font-bold">
+                      <User className="w-4 h-4" /> Profile
+                    </button>
+                    <button className="w-full flex items-center gap-3 py-2 text-sm font-bold">
+                      <History className="w-4 h-4" /> History
+                    </button>
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 py-2 text-sm font-bold text-rose-500"
+                    >
+                      <LogOut className="w-4 h-4" /> Sign Out
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      setIsAuthModalOpen(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full bg-black text-white py-4 rounded-2xl font-bold"
+                  >
+                    Sign In
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-16 md:py-24">
