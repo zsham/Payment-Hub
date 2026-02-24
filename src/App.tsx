@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { 
   ShoppingCart, 
@@ -10,7 +10,12 @@ import {
   ShieldCheck, 
   Lock, 
   ChevronRight,
-  Info
+  Info,
+  User,
+  LogOut,
+  X,
+  Mail,
+  Key
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -42,6 +47,59 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(PRODUCTS[1]);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authForm, setAuthForm] = useState({ email: '', password: '', name: '' });
+  const [authError, setAuthError] = useState('');
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+      }
+    } catch (err) {
+      console.error("Auth check failed", err);
+    }
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(authForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (authMode === 'login') {
+          setUser(data.user);
+          setIsAuthModalOpen(false);
+        } else {
+          setAuthMode('login');
+          setAuthError('Account created! Please log in.');
+        }
+      } else {
+        setAuthError(data.error || 'Authentication failed');
+      }
+    } catch (err) {
+      setAuthError('Network error');
+    }
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setUser(null);
+  };
 
   const initialOptions = {
     clientId: (import.meta as any).env.VITE_PAYPAL_CLIENT_ID || "test",
@@ -98,9 +156,27 @@ export default function App() {
             <a href="#" className="hover:text-black transition-colors">Solutions</a>
             <a href="#" className="hover:text-black transition-colors">Pricing</a>
             <a href="#" className="hover:text-black transition-colors">Developers</a>
-            <button className="bg-black text-white px-6 py-2.5 rounded-full hover:bg-black/80 transition-all">
-              Sign In
-            </button>
+            {user ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-black">
+                  <User className="w-4 h-4" />
+                  <span>{user.name}</span>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 hover:bg-black/5 rounded-full transition-colors text-rose-500"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsAuthModalOpen(true)}
+                className="bg-black text-white px-6 py-2.5 rounded-full hover:bg-black/80 transition-all"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -320,6 +396,110 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {/* Auth Modal */}
+      <AnimatePresence>
+        {isAuthModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAuthModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[40px] p-10 shadow-2xl overflow-hidden"
+            >
+              <button 
+                onClick={() => setIsAuthModalOpen(false)}
+                className="absolute top-8 right-8 p-2 hover:bg-black/5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="mb-10">
+                <h2 className="text-3xl font-bold tracking-tight mb-2">
+                  {authMode === 'login' ? 'Welcome back.' : 'Create account.'}
+                </h2>
+                <p className="text-black/50 text-sm">
+                  {authMode === 'login' ? 'Enter your credentials to access your account.' : 'Join us to manage your payments and subscriptions.'}
+                </p>
+              </div>
+
+              <form onSubmit={handleAuth} className="space-y-4">
+                {authMode === 'register' && (
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+                    <input
+                      type="text"
+                      placeholder="Full Name"
+                      required
+                      value={authForm.name}
+                      onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                      className="w-full pl-12 pr-4 py-4 bg-black/5 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition-all text-sm font-medium"
+                    />
+                  </div>
+                )}
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+                  <input
+                    type="email"
+                    placeholder="Email Address"
+                    required
+                    value={authForm.email}
+                    onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                    className="w-full pl-12 pr-4 py-4 bg-black/5 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition-all text-sm font-medium"
+                  />
+                </div>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    required
+                    value={authForm.password}
+                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                    className="w-full pl-12 pr-4 py-4 bg-black/5 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition-all text-sm font-medium"
+                  />
+                </div>
+
+                {authError && (
+                  <div className="p-4 bg-rose-50 text-rose-600 text-xs font-bold rounded-xl flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-black text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-black/80 transition-all mt-4"
+                >
+                  {authMode === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
+              </form>
+
+              <div className="mt-8 text-center text-sm">
+                <span className="text-black/40">
+                  {authMode === 'login' ? "Don't have an account?" : "Already have an account?"}
+                </span>
+                <button
+                  onClick={() => {
+                    setAuthMode(authMode === 'login' ? 'register' : 'login');
+                    setAuthError('');
+                  }}
+                  className="ml-2 font-bold text-indigo-600 hover:underline"
+                >
+                  {authMode === 'login' ? 'Sign Up' : 'Log In'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <footer className="border-t border-black/5 bg-white py-20">
         <div className="max-w-7xl mx-auto px-6">
